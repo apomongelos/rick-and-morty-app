@@ -9,14 +9,14 @@ import {
   View,
 } from 'react-native';
 
-import { AppText } from 'shared/ui/atoms/AppText';
+import { AppText } from '@shared/ui/atoms/AppText';
 
 import type { Character } from 'modules/characters/domain/Character';
+
 import {
   CHARACTER_ROW_HEIGHT,
   CharacterCard,
-} from 'modules/characters/ui/molecules/CharacterCard';
-
+} from '../molecules/CharacterCard';
 type Props = {
   data: Character[];
   loading: boolean;
