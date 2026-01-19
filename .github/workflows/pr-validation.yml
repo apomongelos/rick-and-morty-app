@@ -31,9 +31,11 @@ jobs:
         run: npm ci --legacy-peer-deps
       
       - name: Run ESLint
+        id: lint
         run: npm run lint
       
       - name: Run tests with coverage
+        id: tests
         run: npm run test:coverage
       
       - name: Check coverage thresholds
@@ -52,6 +54,10 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            
+            // Determine the status of the workflow jobs
+            const lintPassed = '${{ steps.lint.outcome }}' !== 'failure';
+            const testsPassed = '${{ steps.tests.outcome }}' !== 'failure';
             
             let coverageSummary = '';
             try {
@@ -72,11 +78,14 @@ jobs:
               coverageSummary = '⚠️ Coverage report not available';
             }
             
+            const lintStatus = lintPassed ? '✅ Linting: Passed' : '❌ Linting: Failed';
+            const testStatus = testsPassed ? '✅ Tests: Passed' : '❌ Tests: Failed';
+            
             const body = `
             ## Pull Request Validation Results
             
-            ✅ Linting: Passed
-            ✅ Tests: Passed
+            ${lintStatus}
+            ${testStatus}
             
             ${coverageSummary}
             `;

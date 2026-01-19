@@ -43,3 +43,4 @@ yarn-error.*
 # Coverage
 coverage/
 *.lcov
+eslint.config.js.backup
