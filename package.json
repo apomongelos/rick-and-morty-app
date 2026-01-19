@@ -9,7 +9,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest --watchAll",
-    "test:coverage": "jest --coverage --watchAll=false --coverageReporters=lcov"
+    "test:coverage": "jest --coverage --watchAll=false"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.4.8",
@@ -48,7 +48,7 @@
       "!**/dist/**",
       "!**/.expo/**",
       "!**/*.config.{js,ts}",
-      "!**/index.ts"
+      "!./index.ts"
     ],
     "coveragePathIgnorePatterns": [
       "/node_modules/",
