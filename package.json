@@ -8,7 +8,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "jest --watchAll"
+    "test": "jest --watchAll",
+    "test:coverage": "jest --coverage --watchAll=false"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.4.8",
@@ -39,6 +40,25 @@
   },
   "private": true,
   "jest": {
-    "preset": "jest-expo"
+    "preset": "jest-expo",
+    "collectCoverageFrom": [
+      "**/*.{ts,tsx}",
+      "!**/node_modules/**",
+      "!**/coverage/**",
+      "!**/dist/**",
+      "!**/.expo/**",
+      "!**/*.config.{js,ts}",
+      "!./index.ts"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/.expo/",
+      "/coverage/"
+    ],
+    "coverageReporters": [
+      "lcov",
+      "text",
+      "text-summary"
+    ]
   }
 }
