@@ -9,13 +9,14 @@
     "web": "expo start --web",
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .ts,.tsx,.js,.jsx --fix",
+    "lint:staged": "ESLINT_USE_FLAT_CONFIG=false eslint --fix",
     "test": "jest --watchAll",
     "test:coverage": "jest --coverage --watchAll=false",
     "prepare": "husky"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
-      "bash -c 'ESLINT_USE_FLAT_CONFIG=false eslint --fix \"$@\"' --",
+      "npm run lint:staged",
       "prettier --write"
     ]
   },
