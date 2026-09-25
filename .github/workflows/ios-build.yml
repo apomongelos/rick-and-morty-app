@@ -3,11 +3,6 @@ name: iOS Build
 on:
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to build'
-        required: true
-        default: 'main'
-        type: string
       environment:
         description: 'Environment'
         required: true
@@ -16,10 +11,6 @@ on:
           - stage
           - preprod
           - production
-      buildName:
-        description: 'Version name (optional, e.g. 1.1.0). Leave empty to use the version from app.json'
-        required: false
-        type: string
       upload_to_testflight:
         description: 'Upload to TestFlight? (production only; builds a signed IPA instead of the simulator build + GitHub Release flow)'
         required: false
@@ -40,9 +31,8 @@ jobs:
     steps:
       - name: Debug inputs
         run: |
-          echo "Branch: ${{ inputs.branch }}"
+          echo "Branch: ${{ github.ref_name }}"
           echo "Environment: ${{ inputs.environment }}"
-          echo "Build name: ${{ inputs.buildName }}"
           echo "Upload to TestFlight: ${{ inputs.upload_to_testflight }}"
 
       # Fail fast: only production builds can go to TestFlight
@@ -73,8 +63,6 @@ jobs:
 
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -90,19 +78,17 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      # versionName comes from the input (or app.json) and the build number from the run number,
-      # so there is no need to commit a version bump back to the branch.
+      # versionName always comes from app.json (bump it there via PR for minor/major releases);
+      # the build number comes from the run number, so there is no need to commit it back to the branch.
       - name: Set version in app.json
         id: app_version
         env:
-          BUILD_NAME: ${{ inputs.buildName }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           VERSION_INFO=$(node -e '
             const fs = require("fs");
             const config = JSON.parse(fs.readFileSync("app.json", "utf8"));
-            const versionName = process.env.BUILD_NAME || config.expo.version;
-            config.expo.version = versionName;
+            const versionName = config.expo.version;
             config.expo.ios.buildNumber = process.env.BUILD_NUMBER;
             fs.writeFileSync("app.json", JSON.stringify(config, null, 2));
             console.log(`${versionName}-${process.env.BUILD_NUMBER}`);
@@ -110,6 +96,7 @@ jobs:
 
           echo "Version: $VERSION_INFO"
           echo "version=$VERSION_INFO" >> "$GITHUB_OUTPUT"
+          echo "version_name=${VERSION_INFO%-*}" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # Also runs `pod install`
@@ -222,10 +209,10 @@ jobs:
         with:
           tag_name: ios-${{ inputs.environment }}-v${{ steps.app_version.outputs.version }}
           target_commitish: ${{ steps.app_version.outputs.sha }}
-          name: 'iOS [${{ inputs.environment }}] - v${{ steps.app_version.outputs.version }}'
+          name: 'iOS ${{ inputs.environment }} v${{ steps.app_version.outputs.version_name }} (build ${{ github.run_number }})'
           body: |
             Automatically generated iOS QA build (iOS Simulator only).
-            - Branch: ${{ inputs.branch }}
+            - Branch: ${{ github.ref_name }}
             - Environment: ${{ inputs.environment }}
             - Version: ${{ steps.app_version.outputs.version }}
             - Commit: ${{ steps.app_version.outputs.sha }}
@@ -238,7 +225,7 @@ jobs:
       - name: Job summary
         run: |
           echo "### ✅ iOS build completed" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Branch: ${{ inputs.branch }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Branch: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Environment: ${{ inputs.environment }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: ${{ steps.app_version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
           if [ "${{ inputs.upload_to_testflight }}" = "true" ]; then
