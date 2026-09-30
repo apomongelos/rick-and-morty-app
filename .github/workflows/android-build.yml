@@ -163,6 +163,27 @@ jobs:
           files: ${{ steps.artifact.outputs.path }}
           prerelease: true
 
+      - name: Enviar email con enlace al Release de GitHub
+        if: ${{ !inputs.upload_to_playstore }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SERVER_SMTP }}
+          server_port: ${{ secrets.SERVER_PORT }}
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: 'Build Android completado - Versión ${{ steps.app_version.outputs.version }}'
+          to: ${{ secrets.EMAIL_TO }}
+          from: Información Github <${{ secrets.EMAIL_USERNAME }}>
+          body: |
+            Se ha completado el build de la aplicación con los siguientes parámetros:
+
+            - Branch: ${{ github.ref_name }}
+            - Environment: ${{ inputs.environment }}
+            - Versión: ${{ steps.app_version.outputs.version }}
+
+            Puedes descargar el APK de forma permanente desde los Releases de GitHub:
+            ${{ steps.create_release.outputs.url }}
+
       - name: Job summary
         run: |
           echo "### ✅ Android build completed" >> "$GITHUB_STEP_SUMMARY"
