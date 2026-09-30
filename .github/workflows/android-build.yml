@@ -56,6 +56,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Restore .env file for the environment
+        env:
+          ENV_STAGE_BASE64: ${{ secrets.ENV_STAGE_BASE64 }}
+          ENV_PREPROD_BASE64: ${{ secrets.ENV_PREPROD_BASE64 }}
+          ENV_PRODUCTION_BASE64: ${{ secrets.ENV_PRODUCTION_BASE64 }}
+        run: |
+          case "${{ inputs.environment }}" in
+            stage) VALUE="$ENV_STAGE_BASE64"; TARGET="environments/.env.stage" ;;
+            preprod) VALUE="$ENV_PREPROD_BASE64"; TARGET="environments/.env.preprod" ;;
+            production) VALUE="$ENV_PRODUCTION_BASE64"; TARGET="environments/.env.prod" ;;
+          esac
+          echo "$VALUE" | base64 -d > "$TARGET"
+
+      # Test only: decoded values are NOT masked by GitHub (only the base64 blob is), so this prints them in plain text
+      - name: Debug env file
+        run: |
+          echo "⚠️ Printing the restored env file in plain text, use only with fake values"
+          for FILE in environments/.env.*; do
+            [ "$FILE" = "environments/.env.example" ] && continue
+            echo "📄 $FILE"
+            cat "$FILE"
+          done
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -163,7 +186,7 @@ jobs:
           files: ${{ steps.artifact.outputs.path }}
           prerelease: true
 
-      - name: Enviar email con enlace al Release de GitHub
+      - name: Send email with GitHub Release link
         if: ${{ !inputs.upload_to_playstore }}
         uses: dawidd6/action-send-mail@v3
         with:
