@@ -14,7 +14,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.apomongelos.rickandmortyapp",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "supportsTablet": true
     },
     "android": {
