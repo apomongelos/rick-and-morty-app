@@ -17,6 +17,11 @@ on:
         type: boolean
         default: false
 
+# Builds on the same branch run one at a time, so two runs never bump to the same buildNumber
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build iOS
@@ -61,8 +66,21 @@ jobs:
             exit 1
           fi
 
+      # Short-lived (1h) token of the release-bot GitHub App, used to push the version bump.
+      # Unlike GITHUB_TOKEN it can be allowed to bypass branch protection, and unlike a PAT
+      # it is not tied to a personal account and never expires.
+      - name: Generate release bot token
+        id: bot_token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      # Persists the bot token in the git config, so the later pull/push authenticate as the App
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ steps.bot_token.outputs.token }}
 
       - name: Restore .env file for the environment
         env:
@@ -102,24 +120,40 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       # versionName always comes from app.json (bump it there via PR for minor/major releases);
-      # the build number comes from the run number, so there is no need to commit it back to the branch.
-      - name: Set version in app.json
+      # buildNumber is incremented by scripts/bump-version.js and committed back to the branch.
+      - name: Bump buildNumber in app.json
         id: app_version
-        env:
-          BUILD_NUMBER: ${{ github.run_number }}
         run: |
+          node scripts/bump-version.js ios
+
           VERSION_INFO=$(node -e '
-            const fs = require("fs");
-            const config = JSON.parse(fs.readFileSync("app.json", "utf8"));
-            const versionName = config.expo.version;
-            config.expo.ios.buildNumber = process.env.BUILD_NUMBER;
-            fs.writeFileSync("app.json", JSON.stringify(config, null, 2));
-            console.log(`${versionName}-${process.env.BUILD_NUMBER}`);
+            const config = require("./app.json");
+            console.log(`${config.expo.version}-${config.expo.ios.buildNumber}`);
           ')
 
-          echo "Version: $VERSION_INFO"
+          echo "New version: $VERSION_INFO"
           echo "version=$VERSION_INFO" >> "$GITHUB_OUTPUT"
           echo "version_name=${VERSION_INFO%-*}" >> "$GITHUB_OUTPUT"
+          echo "version_code=${VERSION_INFO##*-}" >> "$GITHUB_OUTPUT"
+
+      # Pushes as the release-bot App. Unlike GITHUB_TOKEN, App pushes DO trigger other workflows,
+      # so the [skip ci] in the message is what keeps the bump commit from starting CI.
+      # HUSKY=0 skips the local lint-staged hook.
+      - name: Commit and push version bump
+        id: bump_commit
+        env:
+          HUSKY: 0
+          GH_TOKEN: ${{ steps.bot_token.outputs.token }}
+          BOT_SLUG: ${{ steps.bot_token.outputs.app-slug }}
+        run: |
+          # Commit as the App's bot user so it shows with its avatar and the "bot" badge
+          BOT_ID=$(gh api "/users/${BOT_SLUG}[bot]" --jq .id)
+          git config user.name "${BOT_SLUG}[bot]"
+          git config user.email "${BOT_ID}+${BOT_SLUG}[bot]@users.noreply.github.com"
+          git add app.json
+          git commit -m "chore(ios): bump buildNumber to ${{ steps.app_version.outputs.version_code }} [skip ci]"
+          git pull --rebase origin ${{ github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       # Also runs `pod install`
@@ -231,14 +265,14 @@ jobs:
         id: create_release
         with:
           tag_name: ios-${{ inputs.environment }}-v${{ steps.app_version.outputs.version }}
-          target_commitish: ${{ steps.app_version.outputs.sha }}
-          name: 'iOS ${{ inputs.environment }} v${{ steps.app_version.outputs.version_name }} (build ${{ github.run_number }})'
+          target_commitish: ${{ steps.bump_commit.outputs.sha }}
+          name: 'iOS ${{ inputs.environment }} v${{ steps.app_version.outputs.version_name }} (build ${{ steps.app_version.outputs.version_code }})'
           body: |
             Automatically generated iOS QA build (iOS Simulator only).
             - Branch: ${{ github.ref_name }}
             - Environment: ${{ inputs.environment }}
             - Version: ${{ steps.app_version.outputs.version }}
-            - Commit: ${{ steps.app_version.outputs.sha }}
+            - Commit: ${{ steps.bump_commit.outputs.sha }}
 
             To install: unzip it and drag the `.app` onto a booted simulator,
             or run `xcrun simctl install booted <path-to-app>`.

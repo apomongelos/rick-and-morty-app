@@ -64,6 +64,16 @@ module.exports = {
       },
     ],
   },
+  overrides: [
+    {
+      // Plain Node (CommonJS) scripts run directly with `node`, e.g. from CI
+      files: ['scripts/**/*.js'],
+      env: { node: true },
+      rules: {
+        '@typescript-eslint/no-require-imports': 'off',
+      },
+    },
+  ],
   settings: {
     react: {
       version: 'detect',
