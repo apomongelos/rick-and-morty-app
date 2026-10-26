@@ -58,21 +58,8 @@ jobs:
             exit 1
           fi
 
-      # Short-lived (1h) token of the release-bot GitHub App, used to push the version bump.
-      # Unlike GITHUB_TOKEN it can be allowed to bypass branch protection, and unlike a PAT
-      # it is not tied to a personal account and never expires.
-      - name: Generate release bot token
-        id: bot_token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ vars.RELEASE_BOT_APP_ID }}
-          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
-
-      # Persists the bot token in the git config, so the later pull/push authenticate as the App
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ steps.bot_token.outputs.token }}
 
       - name: Restore .env file for the environment
         env:
@@ -129,23 +116,28 @@ jobs:
           echo "version_name=${VERSION_INFO%-*}" >> "$GITHUB_OUTPUT"
           echo "version_code=${VERSION_INFO##*-}" >> "$GITHUB_OUTPUT"
 
-      # Pushes as the release-bot App. Unlike GITHUB_TOKEN, App pushes DO trigger other workflows,
-      # so the [skip ci] in the message is what keeps the bump commit from starting CI.
+      # Pushes with the default GITHUB_TOKEN (contents: write), persisted by actions/checkout.
+      # Pushes made with it don't trigger other workflows, so the bump commit can't start a build loop.
+      # It can't bypass branch rulesets, so this only works on branches without push protection.
       # HUSKY=0 skips the local lint-staged hook.
       - name: Commit and push version bump
         id: bump_commit
         env:
           HUSKY: 0
-          GH_TOKEN: ${{ steps.bot_token.outputs.token }}
-          BOT_SLUG: ${{ steps.bot_token.outputs.app-slug }}
         run: |
-          # Commit as the App's bot user so it shows with its avatar and the "bot" badge
-          BOT_ID=$(gh api "/users/${BOT_SLUG}[bot]" --jq .id)
-          git config user.name "${BOT_SLUG}[bot]"
-          git config user.email "${BOT_ID}+${BOT_SLUG}[bot]@users.noreply.github.com"
+          # 41898282 is the user ID of the github-actions[bot] account (same in every repo)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app.json
-          git commit -m "chore(android): bump versionCode to ${{ steps.app_version.outputs.version_code }} [skip ci]"
+          git commit \
+            -m "chore(android): bump versionCode to ${{ steps.app_version.outputs.version_code }} [skip ci]" \
+            -m "Co-authored-by: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>"
           git pull --rebase origin ${{ github.ref_name }}
+          # If another run already pushed the identical bump, the rebase silently drops our commit
+          if [ "$(git rev-list --count origin/${{ github.ref_name }}..HEAD)" = "0" ]; then
+            echo "❌ Another build already used version ${{ steps.app_version.outputs.version }}. Re-run the workflow."
+            exit 1
+          fi
           git push origin HEAD:${{ github.ref_name }}
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
