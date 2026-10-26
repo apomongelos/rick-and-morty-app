@@ -1,5 +1,5 @@
 <!--
-  PR title must start with the Jira key, e.g. "RM-123: Add favorites screen".
+  PR title must include the Jira key, e.g. "feat: RM-123 add favorites screen".
   The title is what shows up (linked to Jira) in the release notes, and the
   Jira link is added at the top of this description automatically.
 -->
