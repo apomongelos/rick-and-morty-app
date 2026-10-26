@@ -259,6 +259,31 @@ jobs:
           echo "Artifact: $TARGET"
           echo "path=$TARGET" >> "$GITHUB_OUTPUT"
 
+      # Header + PRs merged since the previous ios release of this environment, with Jira links
+      - name: Generate release notes
+        if: ${{ !inputs.upload_to_testflight }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JIRA_BASE_URL: ${{ vars.JIRA_BASE_URL }}
+          JIRA_PROJECT_KEY: ${{ vars.JIRA_PROJECT_KEY }}
+          TAG_PREFIX: ios-${{ inputs.environment }}-v
+          NEW_TAG: ios-${{ inputs.environment }}-v${{ steps.app_version.outputs.version }}
+          TARGET_SHA: ${{ steps.bump_commit.outputs.sha }}
+        run: |
+          {
+            echo "Automatically generated iOS QA build (iOS Simulator only)."
+            echo "- Branch: ${{ github.ref_name }}"
+            echo "- Environment: ${{ inputs.environment }}"
+            echo "- Version: ${{ steps.app_version.outputs.version }}"
+            echo "- Commit: $TARGET_SHA"
+            echo
+            echo "To install: unzip it and drag the \`.app\` onto a booted simulator,"
+            echo "or run \`xcrun simctl install booted <path-to-app>\`."
+            echo
+            scripts/release-notes.sh "$TAG_PREFIX" "$NEW_TAG" "$TARGET_SHA"
+          } > release-notes.md
+          cat release-notes.md
+
       - name: Create Release and attach simulator build
         if: ${{ !inputs.upload_to_testflight }}
         uses: softprops/action-gh-release@v2
@@ -267,15 +292,7 @@ jobs:
           tag_name: ios-${{ inputs.environment }}-v${{ steps.app_version.outputs.version }}
           target_commitish: ${{ steps.bump_commit.outputs.sha }}
           name: 'iOS ${{ inputs.environment }} v${{ steps.app_version.outputs.version_name }} (build ${{ steps.app_version.outputs.version_code }})'
-          body: |
-            Automatically generated iOS QA build (iOS Simulator only).
-            - Branch: ${{ github.ref_name }}
-            - Environment: ${{ inputs.environment }}
-            - Version: ${{ steps.app_version.outputs.version }}
-            - Commit: ${{ steps.bump_commit.outputs.sha }}
-
-            To install: unzip it and drag the `.app` onto a booted simulator,
-            or run `xcrun simctl install booted <path-to-app>`.
+          body_path: release-notes.md
           files: ${{ steps.artifact.outputs.path }}
           prerelease: true
 
