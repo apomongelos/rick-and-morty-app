@@ -18,8 +18,10 @@ jobs:
     permissions: {}
 
     steps:
-      # The title goes through env (not inlined in the script) so it can't inject shell commands
-      - name: Check title starts with the Jira key
+      # The key can be anywhere in the title, so Conventional Commits titles work too
+      # ("feat: RM-123 add favorites", "feat(RM-123): add favorites", "RM-123: Add favorites").
+      # The title goes through env (not inlined in the script) so it can't inject shell commands.
+      - name: Check title contains the Jira key
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           JIRA_PROJECT_KEY: ${{ vars.JIRA_PROJECT_KEY }}
@@ -28,10 +30,11 @@ jobs:
             echo "⚠️ JIRA_PROJECT_KEY variable is not set, skipping the check"
             exit 0
           fi
-          if [[ "$PR_TITLE" =~ ^${JIRA_PROJECT_KEY}-[0-9]+ ]]; then
-            echo "✅ PR title references ${BASH_REMATCH[0]}"
+          # Not preceded by a letter/digit, so e.g. "ARM-5" doesn't count as "RM-5"
+          if [[ "$PR_TITLE" =~ (^|[^A-Za-z0-9])(${JIRA_PROJECT_KEY}-[0-9]+) ]]; then
+            echo "✅ PR title references ${BASH_REMATCH[2]}"
           else
-            echo "❌ PR title must start with the Jira key, e.g. \"${JIRA_PROJECT_KEY}-123: Add favorites screen\""
+            echo "❌ PR title must include the Jira key, e.g. \"feat: ${JIRA_PROJECT_KEY}-123 add favorites screen\""
             echo "   Got: \"$PR_TITLE\""
             exit 1
           fi
